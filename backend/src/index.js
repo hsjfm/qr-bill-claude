@@ -10,6 +10,8 @@ import qrRouter from './routes/qr.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+let dbReady = false;
+
 app.use(helmet());
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -17,8 +19,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health check responds immediately — even before DB is connected
+// so Railway's healthcheck passes on cold start
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', version: '1.0.0' });
+  res.json({ status: 'ok', db: dbReady ? 'connected' : 'connecting', version: '1.0.0' });
 });
 
 app.use('/api/auth', authRouter);
@@ -30,14 +34,21 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
-async function start() {
-  await initDb();
-  app.listen(PORT, () => {
-    console.log(`QR Bill API running on port ${PORT}`);
-  });
+// Start HTTP server immediately — healthcheck will pass right away
+app.listen(PORT, () => {
+  console.log(`QR Bill API listening on port ${PORT}`);
+});
+
+// Initialise DB asynchronously with retry — server stays up regardless
+async function initDbWithRetry() {
+  try {
+    await initDb();
+    dbReady = true;
+    console.log('Database schema ready');
+  } catch (err) {
+    console.error('DB init failed, retrying in 5s:', err.message);
+    setTimeout(initDbWithRetry, 5000);
+  }
 }
 
-start().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+initDbWithRetry();
