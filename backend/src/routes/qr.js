@@ -39,21 +39,37 @@ router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
     return res.status(422).json({ error: 'Validation failed', details: errors });
   }
 
+  // ?format=base64 returns JSON with base64-encoded PDF — required for
+  // Salesforce External Services and other JSON-only consumers
+  const useBase64 = req.query.format === 'base64';
+
   try {
     const qrBuffer = await generateQrBillBuffer(payload);
 
     let outputBuffer;
+    let filename;
     if (req.file) {
       outputBuffer = await mergeQrBillIntoInvoice(req.file.buffer, qrBuffer);
+      filename = 'qr-bill-invoice.pdf';
     } else {
       outputBuffer = qrBuffer;
+      filename = 'qr-bill.pdf';
     }
 
+    if (useBase64) {
+      // JSON response for Salesforce External Services / JSON-only consumers
+      return res.json({
+        pdf: outputBuffer.toString('base64'),
+        filename,
+        mimeType: 'application/pdf',
+        size: outputBuffer.length,
+        encoding: 'base64',
+      });
+    }
+
+    // Default: raw binary PDF response
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="qr-bill${req.file ? '-invoice' : ''}.pdf"`
-    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(outputBuffer);
   } catch (err) {
     if (err.name === 'ValidationError' || err.code?.startsWith('CREDITOR') || err.code?.startsWith('DEBTOR') || err.code?.startsWith('AMOUNT') || err.code?.startsWith('REFERENCE')) {
