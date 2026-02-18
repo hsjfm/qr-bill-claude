@@ -21,6 +21,28 @@ const upload = multer({
   },
 });
 
+// Helper — shared response logic once we have an output buffer
+async function sendResponse(req, res, outputBuffer, filename) {
+  const useBase64 = req.query.format === 'base64';
+
+  if (useBase64) {
+    return res.json({
+      pdf: outputBuffer.toString('base64'),
+      filename,
+      mimeType: 'application/pdf',
+      size: outputBuffer.length,
+      encoding: 'base64',
+    });
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(outputBuffer);
+}
+
+// ─── POST /api/generate (multipart/form-data) ────────────────────────────────
+// Original endpoint — accepts a JSON string in the `data` field + optional PDF
+// Used for: direct API calls, Postman, PDF append use case
 router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
   let payload;
 
@@ -39,15 +61,10 @@ router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
     return res.status(422).json({ error: 'Validation failed', details: errors });
   }
 
-  // ?format=base64 returns JSON with base64-encoded PDF — required for
-  // Salesforce External Services and other JSON-only consumers
-  const useBase64 = req.query.format === 'base64';
-
   try {
     const qrBuffer = await generateQrBillBuffer(payload);
+    let outputBuffer, filename;
 
-    let outputBuffer;
-    let filename;
     if (req.file) {
       outputBuffer = await mergeQrBillIntoInvoice(req.file.buffer, qrBuffer);
       filename = 'qr-bill-invoice.pdf';
@@ -56,26 +73,77 @@ router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
       filename = 'qr-bill.pdf';
     }
 
-    if (useBase64) {
-      // JSON response for Salesforce External Services / JSON-only consumers
-      return res.json({
-        pdf: outputBuffer.toString('base64'),
-        filename,
-        mimeType: 'application/pdf',
-        size: outputBuffer.length,
-        encoding: 'base64',
-      });
-    }
-
-    // Default: raw binary PDF response
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(outputBuffer);
+    await sendResponse(req, res, outputBuffer, filename);
   } catch (err) {
     if (err.name === 'ValidationError' || err.code?.startsWith('CREDITOR') || err.code?.startsWith('DEBTOR') || err.code?.startsWith('AMOUNT') || err.code?.startsWith('REFERENCE')) {
       return res.status(422).json({ error: 'QR bill validation failed', details: err.message });
     }
     console.error('Generate error:', err);
+    res.status(500).json({ error: 'Failed to generate QR bill' });
+  }
+});
+
+// ─── POST /api/generate/json ──────────────────────────────────────────────────
+// Structured JSON endpoint for Salesforce External Services / Flow
+// Accepts application/json with fully typed nested fields
+// Always returns base64 JSON — no binary PDF, no file upload
+router.post('/generate/json', apiKeyAuth, async (req, res) => {
+  // Map the flat Salesforce-friendly structure into our internal payload format
+  const b = req.body;
+
+  const payload = {
+    creditor: {
+      account:        b.creditorAccount,
+      name:           b.creditorName,
+      street:         b.creditorStreet,
+      buildingNumber: b.creditorBuildingNumber,
+      postalCode:     b.creditorPostalCode,
+      city:           b.creditorCity,
+      country:        b.creditorCountry,
+    },
+    payment: {
+      amount:               b.amount,
+      currency:             b.currency,
+      referenceType:        b.referenceType || 'NON',
+      reference:            b.reference,
+      unstructuredMessage:  b.unstructuredMessage,
+    },
+    language: b.language || 'EN',
+  };
+
+  // Debtor is optional — only include if name provided
+  if (b.debtorName) {
+    payload.debtor = {
+      name:           b.debtorName,
+      street:         b.debtorStreet,
+      buildingNumber: b.debtorBuildingNumber,
+      postalCode:     b.debtorPostalCode,
+      city:           b.debtorCity,
+      country:        b.debtorCountry,
+    };
+  }
+
+  const errors = validatePayload(payload);
+  if (errors.length > 0) {
+    return res.status(422).json({ error: 'Validation failed', details: errors });
+  }
+
+  try {
+    const qrBuffer = await generateQrBillBuffer(payload);
+
+    // Always return base64 JSON for this endpoint
+    return res.json({
+      pdf: qrBuffer.toString('base64'),
+      filename: 'qr-bill.pdf',
+      mimeType: 'application/pdf',
+      size: qrBuffer.length,
+      encoding: 'base64',
+    });
+  } catch (err) {
+    if (err.name === 'ValidationError' || err.code?.startsWith('CREDITOR') || err.code?.startsWith('DEBTOR') || err.code?.startsWith('AMOUNT') || err.code?.startsWith('REFERENCE')) {
+      return res.status(422).json({ error: 'QR bill validation failed', details: err.message });
+    }
+    console.error('Generate JSON error:', err);
     res.status(500).json({ error: 'Failed to generate QR bill' });
   }
 });
