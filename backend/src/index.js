@@ -6,6 +6,7 @@ import { initDb } from './db.js';
 import authRouter from './routes/auth.js';
 import keysRouter from './routes/keys.js';
 import qrRouter from './routes/qr.js';
+import logsRouter from './routes/logs.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,6 +37,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/keys', keysRouter);
 app.use('/api', qrRouter);
+app.use('/api', logsRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

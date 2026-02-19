@@ -2,40 +2,44 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, ApiKey } from "@/lib/api";
+import { api, ApiKey, LogStats } from "@/lib/api";
 
 export default function DashboardPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [stats, setStats] = useState<LogStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.listKeys()
-      .then(setKeys)
+    Promise.all([api.listKeys(), api.logStats()])
+      .then(([k, s]) => {
+        setKeys(k);
+        setStats(s);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-
-  const lastUsed = keys
-    .filter((k) => k.last_used_at)
-    .sort((a, b) => new Date(b.last_used_at!).getTime() - new Date(a.last_used_at!).getTime())[0];
 
   return (
     <div>
       <h1 className="mb-1 text-2xl font-bold text-zinc-900 dark:text-white">Overview</h1>
       <p className="mb-8 text-zinc-500">Welcome to your Swiss QR Bill API dashboard.</p>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-4">
         <StatCard
           label="Active API keys"
           value={loading ? "…" : String(keys.length)}
         />
         <StatCard
-          label="Last API usage"
-          value={lastUsed ? new Date(lastUsed.last_used_at!).toLocaleDateString() : "Never"}
+          label="Calls today"
+          value={loading ? "…" : Number(stats?.calls_today ?? 0).toLocaleString()}
         />
         <StatCard
-          label="Standard"
-          value="SIX v2.3"
+          label="Calls this month"
+          value={loading ? "…" : Number(stats?.calls_this_month ?? 0).toLocaleString()}
+        />
+        <StatCard
+          label="Total calls"
+          value={loading ? "…" : Number(stats?.total_calls ?? 0).toLocaleString()}
         />
       </div>
 
@@ -45,6 +49,7 @@ export default function DashboardPage() {
           <Step n={1} text="Create an API key on the" link={{ href: "/dashboard/keys", label: "API Keys page" }} />
           <Step n={2} text="Call POST /api/generate with your X-Api-Key header" />
           <Step n={3} text="Receive your compliant Swiss QR Bill PDF" />
+          <Step n={4} text="Monitor usage on the" link={{ href: "/dashboard/logs", label: "Logs page" }} />
         </div>
       </div>
     </div>

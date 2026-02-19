@@ -47,6 +47,27 @@ export interface NewApiKey extends ApiKey {
   warning: string;
 }
 
+export interface ApiLog {
+  id: string;
+  method: string;
+  path: string;
+  status_code: number;
+  duration_ms: number;
+  ip: string | null;
+  created_at: string;
+  key_name: string | null;
+  key_prefix: string | null;
+}
+
+export interface LogStats {
+  total_calls: string;
+  successful_calls: string;
+  failed_calls: string;
+  calls_today: string;
+  calls_this_month: string;
+  avg_duration_ms: string | null;
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<{ token: string; user: User }>('/api/auth/signup', {
@@ -72,4 +93,8 @@ export const api = {
 
   revokeKey: (id: string) =>
     request<{ message: string }>(`/api/keys/${id}`, { method: 'DELETE' }),
+
+  listLogs: () => request<ApiLog[]>('/api/logs'),
+
+  logStats: () => request<LogStats>('/api/logs/stats'),
 };

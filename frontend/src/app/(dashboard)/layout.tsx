@@ -32,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: "/dashboard", label: "Overview" },
     { href: "/dashboard/keys", label: "API Keys" },
+    { href: "/dashboard/logs", label: "Logs" },
   ];
 
   return (
