@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { apiKeyAuth } from '../middleware/apiKeyAuth.js';
+import { requestLogger } from '../middleware/requestLogger.js';
 import {
   validatePayload,
   generateQrBillBuffer,
@@ -43,7 +44,7 @@ async function sendResponse(req, res, outputBuffer, filename) {
 // ─── POST /api/generate (multipart/form-data) ────────────────────────────────
 // Original endpoint — accepts a JSON string in the `data` field + optional PDF
 // Used for: direct API calls, Postman, PDF append use case
-router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
+router.post('/generate', apiKeyAuth, requestLogger, upload.single('pdf'), async (req, res) => {
   let payload;
 
   try {
@@ -87,7 +88,7 @@ router.post('/generate', apiKeyAuth, upload.single('pdf'), async (req, res) => {
 // Structured JSON endpoint for Salesforce External Services / Flow
 // Accepts application/json with fully typed nested fields
 // Always returns base64 JSON — no binary PDF, no file upload
-router.post('/generate/json', apiKeyAuth, async (req, res) => {
+router.post('/generate/json', apiKeyAuth, requestLogger, async (req, res) => {
   // Map the flat Salesforce-friendly structure into our internal payload format
   const b = req.body;
 
