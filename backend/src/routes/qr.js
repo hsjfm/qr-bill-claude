@@ -131,12 +131,28 @@ router.post('/generate/json', apiKeyAuth, async (req, res) => {
   try {
     const qrBuffer = await generateQrBillBuffer(payload);
 
+    let outputBuffer, filename;
+
+    // Optional: if a base64-encoded invoice PDF is provided, append the QR slip to it
+    if (b.pdfBase64) {
+      try {
+        const invoiceBuffer = Buffer.from(b.pdfBase64, 'base64');
+        outputBuffer = await mergeQrBillIntoInvoice(invoiceBuffer, qrBuffer);
+        filename = 'invoice-with-qr-bill.pdf';
+      } catch {
+        return res.status(400).json({ error: 'Invalid base64 PDF in pdfBase64 field' });
+      }
+    } else {
+      outputBuffer = qrBuffer;
+      filename = 'qr-bill.pdf';
+    }
+
     // Always return base64 JSON for this endpoint
     return res.json({
-      pdf: qrBuffer.toString('base64'),
-      filename: 'qr-bill.pdf',
+      pdf: outputBuffer.toString('base64'),
+      filename,
       mimeType: 'application/pdf',
-      size: qrBuffer.length,
+      size: outputBuffer.length,
       encoding: 'base64',
     });
   } catch (err) {
