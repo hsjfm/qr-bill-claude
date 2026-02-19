@@ -17,7 +17,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Health check responds immediately — even before DB is connected
 // so Railway's healthcheck passes on cold start
