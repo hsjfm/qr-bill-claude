@@ -2,12 +2,22 @@
 
 Generate SIX Swiss Payment Standards v2.3 compliant QR payment slips via a simple REST API. Optionally append the QR slip to an existing invoice PDF.
 
+## Live environments
+
+| | URL |
+|---|---|
+| **Frontend** (dashboard — sign up, manage API keys) | https://qr-bill-claude.vercel.app |
+| **API** (backend)                                   | https://qr-bill-claude-production.up.railway.app |
+| **API health check**                                | https://qr-bill-claude-production.up.railway.app/health |
+
+To start using the API: open the dashboard, sign up, generate an API key, then call `POST /api/generate` with the `X-Api-Key` header (see [API Reference](#api-reference) below).
+
 ## Architecture
 
 ```
 qr-bill-claude/
-├── backend/      Node.js + Express  →  Deploy on Railway
-└── frontend/     Next.js 15         →  Deploy on Vercel
+├── backend/      Node.js + Express  →  Railway (auto-deploy from main)
+└── frontend/     Next.js 16         →  Vercel  (auto-deploy from main)
 ```
 
 ## Local development
@@ -109,13 +119,13 @@ pdf    (optional)  PDF file — invoice to append QR slip to
 
 ```bash
 # Standalone QR slip
-curl -X POST https://YOUR_API_URL/api/generate \
+curl -X POST https://qr-bill-claude-production.up.railway.app/api/generate \
   -H "X-Api-Key: YOUR_KEY" \
-  -F 'data={"creditor":{"account":"CH44 3199 9123 0008 8901 2","name":"Headswap SA","street":"Avenue de Tivoli","buildingNumber":"24","postalCode":"1007","city":"Lausanne","country":"CH"},"payment":{"amount":1250,"currency":"CHF","referenceType":"NON","unstructuredMessage":"Invoice 2025-001"}}' \
+  -F 'data={"creditor":{"account":"CH93 0076 2011 6238 5295 7","name":"Headswap SA","street":"Avenue de Tivoli","buildingNumber":"24","postalCode":"1007","city":"Lausanne","country":"CH"},"payment":{"amount":1250,"currency":"CHF","referenceType":"NON","unstructuredMessage":"Invoice 2025-001"}}' \
   --output qr-slip.pdf
 
 # Appended to invoice
-curl -X POST https://YOUR_API_URL/api/generate \
+curl -X POST https://qr-bill-claude-production.up.railway.app/api/generate \
   -H "X-Api-Key: YOUR_KEY" \
   -F 'data={"creditor":{...},"payment":{...}}' \
   -F 'pdf=@invoice.pdf' \
