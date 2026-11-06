@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../db.js';
 import { jwtAuth } from '../middleware/jwtAuth.js';
+import { isAllowedEmail, NOT_ALLOWED } from '../access.js';
 
 const router = Router();
 
@@ -16,6 +17,9 @@ router.post('/signup', async (req, res) => {
   }
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (!isAllowedEmail(email)) {
+    return res.status(403).json({ error: NOT_ALLOWED });
   }
 
   try {
@@ -57,6 +61,10 @@ router.post('/login', async (req, res) => {
 
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    // After the password check, so the allowlist reveals nothing to a guesser.
+    if (!isAllowedEmail(user.email)) {
+      return res.status(403).json({ error: NOT_ALLOWED });
     }
 
     const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
